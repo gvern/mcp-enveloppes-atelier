@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Données générées par le backend local (formulaires .xlsx remplis)
+local_data/
+
+# Env local
+.env
+
+# macOS
+.DS_Store

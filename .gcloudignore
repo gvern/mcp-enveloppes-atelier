@@ -1,0 +1,9 @@
+# Garde l'archive source petite et évite d'uploader les artefacts.
+.git/
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+data/sample-invoices/
+.DS_Store

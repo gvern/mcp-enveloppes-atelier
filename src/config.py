@@ -24,11 +24,9 @@ FORM = {
 ENVELOPES = {
     "CE": {
         "label": "Subvention CE",
-        "title": "DEMANDE DE SUBVENTION CE 2025",
         "reimbursement_rate": 0.5,
         "cap_reimbursed": 250.0,
         "currency": "EUR",
-        "year": 2026,
         # Confirmé par le template : "dépenses culturelles et sportives"
         "eligible": [
             "culture",
@@ -47,11 +45,9 @@ ENVELOPES = {
     },
     "APPRENTISSAGE": {
         "label": "Remboursement Apprentissage (Académie)",
-        "title": "DEMANDE DE REMBOURSEMENT APPRENTISSAGE 2025",
         "reimbursement_rate": 1.0,
         "cap_reimbursed": 250.0,
         "currency": "EUR",
-        "year": 2026,
         # TODO Nathan : confirmer les catégories éligibles de l'apprentissage
         # "abonnement-ia" = abonnements aux IA (ChatGPT, Claude, Gemini, etc.)
         "eligible": [

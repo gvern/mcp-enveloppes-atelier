@@ -1,12 +1,15 @@
-"""MCP server — Enveloppes AVISIA (modèle PROD : Drive perso par user via OAuth).
+"""MCP server — Enveloppes AVISIA (version atelier, 100 % locale).
 
-Transport : Streamable HTTP (Cloud Run). Sans état local : tokens + ids dans Firestore.
-Chaque user consent une fois (drive.file + spreadsheets) ; le MCP crée et remplit ses
-deux formulaires NDF (CE + Apprentissage) dans SON Drive.
+Aucune dépendance cloud : pas de Drive, OAuth, ni Firestore. Les formulaires NDF
+(CE + Apprentissage) sont de vrais fichiers .xlsx écrits sur disque
+(voir src/local_xlsx.py) — on peut les ouvrir dans Excel/LibreOffice.
+
+Transport :
+  - défaut : stdio  → à brancher dans Claude Desktop (claude_desktop_config.json)
+  - MCP_HTTP=1      → Streamable HTTP sur http://localhost:$PORT/mcp (défaut 8765)
 
 Boucle agentique type :
-  get_auth_url -> (user consent) -> setup_user -> read_invoice (le modèle lit) ->
-  classify -> record_expense -> get_balance
+  setup_user -> read_invoice (le modèle lit) -> classify -> record_expense -> get_balance
 """
 
 import base64
@@ -15,19 +18,9 @@ import unicodedata
 
 from fastmcp import FastMCP
 from fastmcp.utilities.types import File, Image
-from starlette.requests import Request
-from starlette.responses import HTMLResponse, PlainTextResponse
 
-from src import auth, demo, gdrive, local_xlsx, store
+from src import local_xlsx as backend
 from src.config import ALIASES, ENVELOPES
-
-# DEMO_MODE=1   → backend in-memory (pas de Drive/OAuth), état perdu au redémarrage.
-# LOCAL_XLSX=1  → backend fichiers .xlsx locaux (templates copiés, persistant sur disque).
-# sinon         → backend Drive/Sheets par user via OAuth (prod).
-DEMO = os.environ.get("DEMO_MODE") == "1"
-LOCAL = os.environ.get("LOCAL_XLSX") == "1"
-_be = local_xlsx if LOCAL else (demo if DEMO else gdrive)
-NO_AUTH = DEMO or LOCAL
 
 mcp = FastMCP("enveloppes-avisia")
 
@@ -97,26 +90,9 @@ def list_envelopes() -> dict:
 
 
 @mcp.tool
-def get_auth_url(user_id: str) -> dict:
-    """URL de consentement Google pour ce user (accès à son Drive, scope drive.file).
-
-    Le user ouvre l'URL, consent une fois. Ensuite setup_user() devient possible.
-    """
-    if NO_AUTH:
-        mode = "LOCAL_XLSX" if LOCAL else "DEMO_MODE"
-        return {"authorized": True, "auth_url": None, "message": f"{mode} : pas de consentement requis"}
-    authorized = store.get_refresh_token(user_id) is not None
-    return {
-        "authorized": authorized,
-        "auth_url": None if authorized else auth.authorization_url(state=user_id),
-        "message": "Déjà autorisé" if authorized else "Ouvrir auth_url pour autoriser l'accès Drive",
-    }
-
-
-@mcp.tool
 def setup_user(user_id: str, nom: str = "", prenom: str = "") -> dict:
-    """Crée (idempotent) le dossier + les 2 formulaires NDF dans le Drive du user."""
-    return _be.setup_user(user_id, nom=nom, prenom=prenom)
+    """Crée (idempotent) les 2 formulaires NDF .xlsx locaux pour ce user."""
+    return backend.setup_user(user_id, nom=nom, prenom=prenom)
 
 
 @mcp.tool
@@ -153,7 +129,7 @@ def classify(category: str, amount: float, user_id: str) -> dict:
 
     envelope = matches[0]
     rate = ENVELOPES[envelope]["reimbursement_rate"]
-    bal = _be.balance(user_id, envelope)
+    bal = backend.balance(user_id, envelope)
     reimbursed = round(amount * rate, 2)
     return {
         "envelope": envelope,
@@ -173,16 +149,16 @@ def record_expense(
     nom: str = "",
     prenom: str = "",
 ) -> dict:
-    """Inscrit une facture dans le formulaire de l'enveloppe (Drive du user).
+    """Inscrit une facture dans le formulaire .xlsx de l'enveloppe.
 
     Écrit descriptif + montant engagé sur la prochaine ligne libre (15→28) ; le total
-    B29 se recalcule. Renseigne NOM/PRÉNOM si fournis. Renvoie le solde.
-    envelope : 'CE' ou 'APPRENTISSAGE'.
+    B29 (formule SUBTOTAL) reste intact. Renseigne NOM/PRÉNOM si fournis. Renvoie le
+    solde. envelope : 'CE' ou 'APPRENTISSAGE'.
     """
     if nom or prenom:
-        _be.set_identity(user_id, envelope, nom, prenom)
-    row = _be.add_invoice_line(user_id, envelope, descriptif, amount)
-    bal = _be.balance(user_id, envelope)
+        backend.set_identity(user_id, envelope, nom, prenom)
+    row = backend.add_invoice_line(user_id, envelope, descriptif, amount)
+    bal = backend.balance(user_id, envelope)
     bal["line_written"] = row
     return bal
 
@@ -190,35 +166,14 @@ def record_expense(
 @mcp.tool
 def get_balance(user_id: str, envelope: str) -> dict:
     """Solde d'une enveloppe : engagé, remboursé, reste remboursable (vs 250 €)."""
-    return _be.balance(user_id, envelope)
+    return backend.balance(user_id, envelope)
 
 
-# ───────────────────────── routes HTTP ─────────────────────────
-
-
-@mcp.custom_route("/healthz", methods=["GET"])
-async def healthz(request: Request) -> PlainTextResponse:
-    return PlainTextResponse("ok")
-
-
-@mcp.custom_route("/oauth/callback", methods=["GET"])
-async def oauth_callback(request: Request) -> HTMLResponse:
-    """Callback OAuth : échange le code, stocke le refresh_token (state = user_id)."""
-    error = request.query_params.get("error")
-    if error:
-        return HTMLResponse(f"<h3>Autorisation refusée : {error}</h3>", status_code=400)
-    code = request.query_params.get("code")
-    user_id = request.query_params.get("state")
-    if not code or not user_id:
-        return HTMLResponse("<h3>Requête invalide (code/state manquant)</h3>", status_code=400)
-    try:
-        refresh_token = auth.exchange_code(code)
-        store.save_refresh_token(user_id, refresh_token)
-    except Exception as exc:  # noqa: BLE001
-        return HTMLResponse(f"<h3>Échec de l'autorisation : {exc}</h3>", status_code=500)
-    return HTMLResponse("<h3>✅ Accès autorisé. Vous pouvez retourner dans le chat.</h3>")
-
+# ───────────────────────────── run ─────────────────────────────
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", "8080"))
-    mcp.run(transport="http", host="0.0.0.0", port=port)
+    if os.environ.get("MCP_HTTP") == "1":
+        port = int(os.environ.get("PORT", "8765"))
+        mcp.run(transport="http", host="127.0.0.1", port=port)
+    else:
+        mcp.run()  # stdio (défaut) — pour Claude Desktop

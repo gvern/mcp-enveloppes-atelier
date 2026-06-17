@@ -1,17 +1,12 @@
 [project]
 name = "atelier-mcp-enveloppes"
 version = "0.1.0"
-description = "Atelier AVISIA — premier MCP : classement de factures dans les enveloppes CE / Académie"
+description = "Atelier AVISIA — MCP local : classement de factures dans les enveloppes CE / Académie (formulaires .xlsx, sans cloud)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastmcp>=3.0,<4",
-    "google-api-python-client>=2.130.0",
-    "google-auth>=2.30.0",
-    "google-auth-oauthlib>=1.2.0",
-    "google-cloud-firestore>=2.16.0",
     "openpyxl>=3.1.5",
-    "pydantic>=2.7.0",
 ]
 
 [tool.uv]

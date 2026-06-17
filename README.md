@@ -1,113 +1,127 @@
-# MCP Enveloppes AVISIA
+# MCP Enveloppes AVISIA — atelier local
 
-MCP qui classe des factures dans les deux enveloppes annuelles du cabinet (**CE** et
-**Apprentissage**, plafond 250 € remboursés chacune) et remplit le formulaire NDF
-(Google Sheet) correspondant **dans le Drive personnel de chaque utilisateur**.
+Atelier : **créer un serveur MCP de zéro et le brancher en local** sur Claude Desktop
+(ou tout client MCP). Cas concret : classer une facture dans l'une des deux enveloppes
+annuelles du cabinet et remplir le formulaire NDF correspondant.
 
-Plafond = 250 € sur le **remboursé** : CE rembourse 50 % (≈ 500 € engageable),
-Apprentissage 100 % (250 € engageable).
+100 % local : **aucun cloud, aucun compte Google, aucune clé**. Les formulaires sont de
+vrais fichiers `.xlsx` écrits sur disque, ouvrables dans Excel / LibreOffice.
 
-## Architecture (modèle PROD)
+> Un **MCP** (Model Context Protocol) expose des *tools* à un LLM. Le LLM (Claude Desktop,
+> Claude Code…) décide quand les appeler. Ici le LLM lit la facture (OCR), choisit la
+> catégorie, et le MCP applique les règles + écrit le `.xlsx`.
 
-- **Transport** : Streamable HTTP (Cloud Run), endpoint `/mcp/`.
-- **Auth user** : OAuth Google **par utilisateur** (scopes `drive.file` + `spreadsheets`).
-  Chaque user consent une fois ; le MCP crée et remplit ses 2 formulaires dans SON Drive.
-  Le service account ne touche jamais le Drive des users.
-- **Sans état local** : refresh_tokens + ids de Sheets dans **Firestore**.
-- **Templates** : les `.xlsx` de `templates/` sont **uploadés-convertis** en Google
-  Sheets dans le Drive du user (l'app crée le fichier → `drive.file` suffit, fidélité
-  du formulaire préservée — pas besoin de scope `drive` complet).
+## Les deux enveloppes
 
-Boucle agentique : `get_auth_url` → (consent) → `setup_user` → `read_invoice`
-(le modèle lit) → `classify` → `record_expense` → `get_balance`.
+| Enveloppe | Taux remboursé | Plafond remboursé | Engageable | Exemples |
+|---|---|---|---|---|
+| **CE** | 50 % | 250 € | ≈ 500 € | cinéma, musée, spectacle, sport, salle de sport |
+| **APPRENTISSAGE** | 100 % | 250 € | 250 € | formation, livre, conf, certif, abonnement IA |
 
-## Prérequis GCP (one-time, projet `avisia-training`)
+Le plafond de 250 € porte sur le **montant remboursé**, pas l'engagé.
 
-1. **APIs** : `drive`, `sheets`, `firestore`, `run`, `cloudbuild`, `artifactregistry`,
-   `secretmanager`.
-2. **Firestore** : base en mode Native (région `europe-west`). Le SA runtime (default
-   compute `1062626335546-compute@developer.gserviceaccount.com`) doit avoir
-   `roles/datastore.user`.
-3. **OAuth** :
-   - Écran de consentement **User Type = Internal** (pas de vérif Google).
-   - Client OAuth **type Web** → `CLIENT_ID` + `CLIENT_SECRET`.
-   - Redirect URI = `<URL_DU_SERVICE>/oauth/callback` (local :
-     `http://localhost:8080/oauth/callback`).
-   - Scopes : `drive.file`, `spreadsheets`.
-4. **Secret** : `gcloud secrets create enveloppes-oauth-client-secret --data-file=-`
-   (coller le client secret). Le SA runtime : `roles/secretmanager.secretAccessor`.
+## Prérequis
 
-## Test local sans Google (DEMO_MODE)
+- [uv](https://docs.astral.sh/uv/) (gestion env + deps Python)
+- Python ≥ 3.12 (uv l'installe au besoin)
 
-Pour valider toute la logique (classify / record_expense / balance / plafond) sans Drive,
-OAuth ni Firestore — backend in-memory (`src/demo.py`) :
+## Installation
 
 ```bash
 uv sync
-DEMO_MODE=1 uv run python -m src.server   # http://localhost:8080/mcp/
-# autre terminal :
-claude mcp add --transport http enveloppes http://localhost:8080/mcp/
-# puis redémarrer Claude Code (les MCP se chargent au démarrage) et piloter en langage naturel
 ```
 
-En DEMO, `get_auth_url`/`setup_user` ne touchent rien et l'état vit en mémoire (perdu au
-redémarrage). C'est Claude Code (ou tout client MCP) qui joue le LLM.
+## Lancer le serveur
 
-## Démarrage local avec Google (réel)
+**stdio (défaut — pour Claude Desktop)** :
 
 ```bash
-uv sync
-cp .env.example .env        # remplir CLIENT_ID/SECRET, OAUTH_REDIRECT_URI, projet
-gcloud auth application-default login   # ADC pour Firestore
-uv run python -m src.server            # http://localhost:8080/mcp/
+uv run python -m src.server
 ```
 
-Connecter depuis Claude Code :
+**HTTP (pour tester au navigateur / curl / Claude Code)** :
 
 ```bash
-claude mcp add --transport http enveloppes http://localhost:8080/mcp/
+MCP_HTTP=1 uv run python -m src.server   # → http://localhost:8765/mcp
 ```
 
-Test : `get_auth_url("moi@avisia")` → ouvrir l'URL, consentir → `setup_user("moi@avisia",
-nom="Dupont", prenom="Jean")` → vérifier le dossier + 2 Sheets dans votre Drive.
+## Brancher dans Claude Desktop (stdio)
 
-## Déployer sur Cloud Run
+Éditer `claude_desktop_config.json` (Réglages → Développeur → Modifier la config) :
+
+```json
+{
+  "mcpServers": {
+    "enveloppes": {
+      "command": "uv",
+      "args": ["run", "--directory", "/CHEMIN/ABSOLU/atelier-mcp-enveloppes", "python", "-m", "src.server"]
+    }
+  }
+}
+```
+
+Remplacer le chemin par celui du dossier cloné, puis **redémarrer Claude Desktop**. Les
+tools `enveloppes` apparaissent (icône outils). Piloter en langage naturel :
+*« classe cette facture »* en joignant le PDF/image.
+
+## Brancher dans Claude Code (HTTP)
 
 ```bash
-export GOOGLE_OAUTH_CLIENT_ID=...
-export OAUTH_REDIRECT_URI=https://<service>-<hash>.europe-west1.run.app/oauth/callback
-./deploy.sh
+MCP_HTTP=1 uv run python -m src.server            # terminal 1
+claude mcp add --transport http enveloppes http://localhost:8765/mcp   # terminal 2
 ```
 
-⚠️ 1er deploy pour obtenir l'URL → déclarer le redirect URI dans le client OAuth →
-redéployer avec le bon `OAUTH_REDIRECT_URI`. Build en **deux étapes** (jamais
-`--source .`, voir `deploy.sh`).
-
-## Tools
+## Les tools
 
 | Tool | Rôle |
 |---|---|
-| `get_auth_url(user_id)` | URL de consentement Google (si pas déjà autorisé). |
-| `setup_user(user_id, nom, prenom)` | Crée dossier + 2 formulaires NDF dans le Drive du user (idempotent). |
-| `read_invoice(data_base64, mime_type)` | Renvoie la facture au modèle pour lecture (OCR côté modèle). |
-| `classify(category, amount, user_id)` | → `CE` / `APPRENTISSAGE` / `ambiguous` + remboursé + reste. |
-| `record_expense(user_id, envelope, descriptif, amount, nom, prenom)` | Écrit la facture (ligne 15→28), renvoie le solde. |
+| `setup_user(user_id, nom, prenom)` | Crée les 2 formulaires NDF `.xlsx` locaux (idempotent). |
+| `read_invoice(data_base64, mime_type)` | Renvoie la facture au modèle pour lecture (**OCR côté LLM**, pas côté MCP). |
+| `classify(category, amount, user_id)` | → `CE` / `APPRENTISSAGE` / `ambiguous` + remboursé + reste + `fits`. |
+| `record_expense(user_id, envelope, descriptif, amount, nom, prenom)` | Écrit la facture (1re ligne libre 15→28), renvoie le solde. |
 | `get_balance(user_id, envelope)` | Engagé / remboursé / reste remboursable (vs 250 €). |
+| `list_envelopes()` | Règles des deux enveloppes. |
+| `ping(name)` | Vérifie que le MCP répond. |
 
-## Fichiers
+Boucle agentique type :
+`setup_user` → `read_invoice` (le LLM lit) → `classify` → `record_expense` → `get_balance`.
 
-| Fichier | Rôle |
-|---|---|
-| `src/server.py` | Serveur MCP (tools) + routes `/oauth/callback`, `/healthz`. |
-| `src/auth.py` | OAuth Google par user (consent, échange, refresh). |
-| `src/store.py` | Firestore : tokens + ids par user. |
-| `src/gdrive.py` | Drive/Sheets dans le Drive du user (upload template, remplissage). |
-| `src/config.py` | Règles enveloppes + disposition du formulaire. |
-| `templates/*.xlsx` | Formulaires NDF source (CE, Apprentissage). |
-| `deploy.sh` / `Dockerfile` | Déploiement Cloud Run. |
+## Où sont les fichiers
+
+`record_expense` écrit dans :
+
+```
+local_data/<user_id>/CE.xlsx
+local_data/<user_id>/APPRENTISSAGE.xlsx
+```
+
+Copiés depuis `templates/`. Le descriptif va en colonne A, le montant en colonne B
+(lignes 15→28) ; le total **B29** garde sa formule `SUBTOTAL`. Changer le dossier de
+sortie : `LOCAL_XLSX_DIR=/autre/chemin`.
+
+## Les règles
+
+Tout est dans `src/config.py` :
+
+- `ENVELOPES` : taux, plafond, catégories `eligible` par enveloppe.
+- `ALIASES` : marchands mappés direct vers une enveloppe (`anthropic`/`claude` →
+  APPRENTISSAGE, `basic-fit` → CE) sans passer par le LLM.
+
+Le matching (`src/server.py:_match_envelope`) est tolérant aux accents, à la casse, aux
+séparateurs et aux variantes ("licence sportive" → `sport`).
+
+## Structure
+
+```
+src/
+  server.py      # serveur MCP : tools + matching catégorie → enveloppe
+  local_xlsx.py  # backend : copie template + écrit les .xlsx
+  config.py      # règles enveloppes + disposition du formulaire
+templates/
+  CE.xlsx APPRENTISSAGE.xlsx   # formulaires NDF source
+```
 
 ## TODO
 
-- Catégories éligibles **APPRENTISSAGE** dans `src/config.py` (CE = culture/sport confirmé).
-- Sécurité prod : chiffrer le refresh_token, `state` OAuth signé/anti-CSRF, durcir
-  l'accès (MCP privé derrière l'agent host Chat).
+- Confirmer les catégories éligibles **APPRENTISSAGE** dans `src/config.py`
+  (CE = culture/sport déjà confirmé par le template).

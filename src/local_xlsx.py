@@ -1,8 +1,8 @@
-"""Backend LOCAL XLSX — mêmes signatures publiques que src/gdrive.py, sans Google.
+"""Backend de stockage — formulaires NDF en fichiers .xlsx locaux (openpyxl).
 
-Activé par LOCAL_XLSX=1. Copie les vrais templates (templates/<ENV>.xlsx) dans un
-dossier de travail local et écrit dedans avec openpyxl. Persistant sur disque
-(contrairement à demo.py qui est en mémoire) → on peut ouvrir le .xlsx dans Excel.
+Copie les vrais templates (templates/<ENV>.xlsx) dans un dossier de travail local et
+écrit dedans : identité (B10/B11) + lignes de factures (A/B, 15→28). Persistant sur
+disque → on peut ouvrir le .xlsx dans Excel/LibreOffice.
 
 La cellule total B29 garde sa formule SUBTOTAL (jamais touchée) ; balance() recalcule
 l'engagé en sommant B15:B28 côté Python (openpyxl n'évalue pas les formules).

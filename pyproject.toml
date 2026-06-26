@@ -5,9 +5,11 @@ description = "Atelier AVISIA — MCP local : classement de factures dans les en
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "fastmcp>=3.0,<4",
+    "mcp[cli]>=1.27.2",
     "openpyxl>=3.1.5",
+    "pymupdf>=1.24",
 ]
 
 [tool.uv]
+# Projet applicatif (pas une lib publiée) : uv gère deps + lancement, sans build du package.
 package = false

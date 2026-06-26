@@ -3,11 +3,11 @@ __pycache__/
 *.py[cod]
 .venv/
 
-# Données générées par le backend local (formulaires .xlsx remplis)
-local_data/
+# Données générées par le backend local (formulaires .xlsx + justificatifs)
+notes_de_frais/
 
-# Env local
-.env
+# Boîte de dépôt : factures à classer (déposées par l'utilisateur)
+factures_a_classer/
 
 # macOS
 .DS_Store

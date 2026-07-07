@@ -24,7 +24,7 @@ rien casser**.
 - [ ] **1 · Connexion à un MCP** — lire `demo_list_tools` *(rien à coder, juste comprendre)*
 - [ ] **2 · Le system prompt** — écrire `SYSTEM_PROMPT` dans `atelier/config.py`
 - [ ] **3 · La boucle agentique** — ⭐ **le cœur de l'atelier** (`run()`)
-- [ ] **4 · Un deuxième MCP** — brancher le mini MCP météo (multi-outils)
+- [ ] **4 · Un deuxième MCP** — brancher le mini MCP catalogue formations (multi-outils)
 - [ ] **🏁 Démo finale** — un message qui déclenche les DEUX MCP
 
 > **Comment lire une fiche d'exercice :**
@@ -141,7 +141,8 @@ jamais. Termine toujours par une réponse claire en français.
 """
 ```
 
-Tu complèteras ce texte à l'exercice 4 pour y ajouter la consigne sur le nouvel outil météo.
+Tu complèteras ce texte à l'exercice 4 pour y ajouter la consigne sur les nouveaux outils
+formations.
 
 </details>
 
@@ -223,15 +224,18 @@ async def run(self, user_message: str) -> str:
 
 ## 4 · Un deuxième MCP — la gestion de plusieurs outils
 
-🎯 **Ce que tu construis :** la connexion de l'agent à un **second** MCP (`mcp_meteo/`, un
-mini serveur météo **fictif** fourni), sans toucher au protocole.
+🎯 **Ce que tu construis :** la connexion de l'agent à un **second** MCP
+(`mcp_formations/`, un mini serveur **fictif** de catalogue formations/certifications
+internes AVISIA, fourni), sans toucher au protocole.
 
 ✏️ **Ce que tu fais — 2 étapes :**
 
-- **4a** — dans `atelier/config.py`, décommente/ajoute l'entrée `"meteo"` dans
+- **4a** — dans `atelier/config.py`, décommente/ajoute l'entrée `"formations"` dans
   `MCP_SERVERS` (inspire-toi de l'entrée `"enveloppes"` juste au-dessus).
 - **4b** — reviens dans `SYSTEM_PROMPT` (exercice 2) et ajoute une consigne : quand utiliser
-  `get_meteo`, et surtout **quand ne PAS l'utiliser** (ne pas mélanger avec les enveloppes).
+  `list_formations` / `search_formations` / `get_formation`, et surtout comment les
+  articuler avec les enveloppes (le prix TTC d'une formation est à comparer au budget
+  restant de l'enveloppe APPRENTISSAGE avant de recommander une inscription).
 
 Tu ne touches à **rien d'autre** : `connect_all()` (plomberie) boucle déjà sur
 `config.MCP_SERVERS`, et `run()` (ton code de l'exercice 3) route déjà chaque appel vers le
@@ -242,18 +246,19 @@ changent.
 🧪 **Teste :**
 
 ```bash
-uv run python atelier/agent.py "Quelle météo à Lyon ?"
+uv run python atelier/agent.py "Quelles formations sur le Cloud propose le catalogue ?"
 ```
 
-✅ **C'est bon quand :** tu vois `🔌 connecté à « meteo » — 1 tool(s)` au démarrage, et
-l'agent répond avec la météo (fictive) de Lyon sans toucher aux enveloppes.
+✅ **C'est bon quand :** tu vois `🔌 connecté à « formations » — 3 tool(s)` au démarrage, et
+l'agent répond avec la liste des formations de la catégorie "Cloud" (fictives) sans toucher
+aux enveloppes.
 
 <details>
 <summary>💡 Bloqué ? — indice</summary>
 
-Si l'agent essaie d'utiliser `get_meteo` pour une question de note de frais (ou l'inverse),
-le problème n'est presque jamais dans `run()` : relis ton `SYSTEM_PROMPT`, c'est lui qui
-arbitre.
+Si l'agent essaie d'utiliser les outils formations pour une question de note de frais (ou
+l'inverse), le problème n'est presque jamais dans `run()` : relis ton `SYSTEM_PROMPT`,
+c'est lui qui arbitre.
 
 </details>
 
@@ -262,15 +267,19 @@ arbitre.
 ## 🏁 Démo finale — les deux MCP dans la même conversation
 
 ```bash
-uv run python atelier/agent.py "Classe les factures de la boîte à classer de l'atelier 1, et dis-moi aussi quelle météo il fait à Marseille."
+uv run python atelier/agent.py "Trouve-moi une formation sur le prompt engineering, dis-moi son prix, et vérifie si mon budget APPRENTISSAGE restant permet de la financer."
 ```
 
 Observe :
 
-1. l'agent appelle les tools « enveloppes » (liste, lit, classe, archive) **et** `get_meteo`,
+1. l'agent cherche dans le catalogue (`search_formations` ou `list_formations`) et trouve
+   « Prompt Engineering & Agents — les fondamentaux » avec son `prix_ttc` ;
+2. il appelle **aussi** `get_balance("APPRENTISSAGE")` sur le MCP enveloppes (atelier 1),
    dans le même tour de conversation ;
-2. chaque appel est routé vers le **bon** sous-processus MCP (`tool_to_server`) ;
-3. la réponse finale couvre les deux sujets.
+3. chaque appel est routé vers le **bon** sous-processus MCP (`tool_to_server`) ;
+4. la réponse finale compare le prix de la formation au `remaining_reimbursed` de
+   l'enveloppe, et conclut clairement : finançable ou non, et **de combien** on dépasse le
+   reste remboursable le cas échéant.
 
 **Réinitialiser pour rejouer :** relance simplement la commande — l'atelier 1 gère son
 propre état (voir sa section « Réinitialiser » dans son `ATELIER.md`).
@@ -284,8 +293,8 @@ propre état (voir sa section « Réinitialiser » dans son `ATELIER.md`).
 | `check.py` affiche un ❌ sur la clé API      | `ANTHROPIC_API_KEY` non exportée            | `export ANTHROPIC_API_KEY=sk-ant-...` dans le même terminal       |
 | `check.py` ne trouve pas l'atelier 1          | dossiers pas voisins, ou atelier 1 pas sync | `cd ../atelier-1-serveur-mcp && uv sync`                          |
 | L'agent boucle sans jamais répondre           | `stop_reason` mal testé, ou `tool_result` pas renvoyé | compare avec `solution/agent.py`                        |
-| `KeyError` sur un nom de tool                 | `tool_to_server` pas à jour (2ᵉ MCP mal branché) | vérifie l'entrée `"meteo"` dans `MCP_SERVERS`                 |
-| L'agent mélange enveloppes et météo           | `SYSTEM_PROMPT` pas assez précis            | relis l'exercice 4b — c'est le prompt qui arbitre                 |
+| `KeyError` sur un nom de tool                 | `tool_to_server` pas à jour (2ᵉ MCP mal branché) | vérifie l'entrée `"formations"` dans `MCP_SERVERS`            |
+| L'agent mélange enveloppes et formations      | `SYSTEM_PROMPT` pas assez précis            | relis l'exercice 4b — c'est le prompt qui arbitre                 |
 
 > 💡 **Filet de sécurité :** `solution/` contient la version complète. En cas de blocage :
 > `uv run python solution/agent.py "ton message"`.
@@ -306,8 +315,9 @@ setup/`check.py` (dont vérif atelier 1) · 10 min exo 1 (connexion, lecture) ·
   la nécessitent pas : un participant sans clé peut avancer en attendant.
 - **Atelier 1 obligatoire en amont** : `atelier-1-serveur-mcp/` doit être cloné et
   synchronisé (`uv sync`) avant de commencer cet atelier — c'est la cible MCP par défaut.
-- **Aucune donnée réelle** : le MCP météo est un mock inventé (4 villes, pas d'appel
-  réseau). Rappelle-le si la question se pose.
+- **Aucune donnée réelle** : le MCP formations est un catalogue inventé (une dizaine de
+  formations/certifications, pas d'appel réseau, pas de catalogue RH réel AVISIA).
+  Rappelle-le si la question se pose.
 
 **Points de discussion à provoquer :**
 

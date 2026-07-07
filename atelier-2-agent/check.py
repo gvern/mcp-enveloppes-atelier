@@ -34,9 +34,9 @@ has_key = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
 check("Variable d'environnement ANTHROPIC_API_KEY définie", has_key,
       "export ANTHROPIC_API_KEY=sk-ant-... (jamais dans le code, jamais commit)")
 
-# 3. le mini MCP météo fourni est bien en place
-meteo_script = ROOT / "mcp_meteo" / "server.py"
-check("mcp_meteo/server.py présent (2e MCP, exercice 4)", meteo_script.exists(),
+# 3. le mini MCP catalogue formations fourni est bien en place
+formations_script = ROOT / "mcp_formations" / "server.py"
+check("mcp_formations/server.py présent (2e MCP, exercice 4)", formations_script.exists(),
       "fichier manquant — ne devrait pas arriver, réclone le dépôt")
 
 # 4. atelier-1-serveur-mcp trouvable (voisin de ce dossier dans le mono-repo)

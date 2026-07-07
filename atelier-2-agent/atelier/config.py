@@ -28,8 +28,9 @@ ATELIER1_DIR = Path(os.environ.get(
 # chaque entrée devient un sous-processus MCP piloté par l'agent. Donner un nouvel outil
 # à l'agent = ajouter une entrée ICI, rien à toucher côté protocole.
 #
-# TODO 4a — ajoute une entrée "meteo" pour brancher le mini MCP météo fourni
-#           (mcp_meteo/server.py, dans ce dossier). Inspire-toi de l'entrée "enveloppes".
+# TODO 4a — ajoute une entrée "formations" pour brancher le mini MCP catalogue formations
+#           fourni (mcp_formations/server.py, dans ce dossier). Inspire-toi de l'entrée
+#           "enveloppes".
 # ════════════════════════════════════════════════════════════════════════════════
 MCP_SERVERS = {
     "enveloppes": {
@@ -38,9 +39,9 @@ MCP_SERVERS = {
         "cwd": str(ATELIER1_DIR),
     },
     # TODO 4a — décommente et adapte :
-    # "meteo": {
+    # "formations": {
     #     "command": "uv",
-    #     "args": ["run", "python", "mcp_meteo/server.py"],
+    #     "args": ["run", "python", "mcp_formations/server.py"],
     #     "cwd": str(ATELIER_DIR),
     # },
 }
@@ -56,7 +57,7 @@ MCP_SERVERS = {
 #   • quand utiliser les outils "enveloppes" (classement de factures) ;
 #   • la règle non négociable : ne jamais inventer prénom/nom.
 #
-# 💡 Reviens ici à l'exercice 4 pour ajouter une consigne sur le nouvel outil météo
+# 💡 Reviens ici à l'exercice 4 pour ajouter une consigne sur les nouveaux outils formations
 #    (pour éviter que l'agent l'appelle hors-sujet).
 # ════════════════════════════════════════════════════════════════════════════════
 SYSTEM_PROMPT = ""  # TODO 2

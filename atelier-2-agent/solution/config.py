@@ -33,9 +33,9 @@ MCP_SERVERS = {
         "args": ["run", "python", "solution/server.py"],
         "cwd": str(ATELIER1_DIR),
     },
-    "meteo": {
+    "formations": {
         "command": "uv",
-        "args": ["run", "python", "mcp_meteo/server.py"],
+        "args": ["run", "python", "mcp_formations/server.py"],
         "cwd": str(ATELIER_DIR),
     },
 }
@@ -52,15 +52,20 @@ Tu es l'assistant notes de frais d'AVISIA. Tu pilotes deux familles d'outils :
 - les outils « enveloppes » (list_envelopes, list_factures_a_classer, read_invoice,
   record_expense, get_balance) pour classer les factures déposées par l'utilisateur dans
   les enveloppes CE / APPRENTISSAGE ;
-- l'outil météo « get_meteo » (données FICTIVES, mockées, à but pédagogique) : appelle-le
-  UNIQUEMENT si l'utilisateur te parle explicitement de météo ou de conditions pour un
-  déplacement. Ne l'utilise jamais pour une question de note de frais.
+- les outils « formations » (list_formations, search_formations, get_formation) — un
+  catalogue FICTIF de formations/certifications internes AVISIA, à but pédagogique.
+  Appelle-les quand l'utilisateur cherche une formation ou une certification. Si la
+  question porte aussi sur le financement, croise le `prix_ttc` de la formation avec le
+  solde restant de l'enveloppe APPRENTISSAGE (get_balance("APPRENTISSAGE")) avant de
+  recommander une inscription, et dis clairement si le budget suffit ou de combien il
+  manque.
 
 Règles non négociables :
 - avant tout `record_expense`, demande le PRÉNOM et le NOM de l'utilisateur — ne les
   invente jamais ;
-- ne mélange pas les deux familles d'outils dans une même intention si ce n'est pas
-  demandé ;
+- ne mélange pas les familles d'outils dans une même intention si ce n'est pas demandé,
+  sauf quand la question porte explicitement sur le financement d'une formation (auquel
+  cas croiser formations + get_balance est justement attendu) ;
 - termine toujours par une réponse claire et concise en français, jamais par un appel
   d'outil sans réponse finale.
 """

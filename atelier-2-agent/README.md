@@ -3,8 +3,8 @@
 Un **agent** 100 % local qui pilote un ou plusieurs serveurs **MCP** via le tool-calling de
 l'API Anthropic : tu lui parles en langage naturel, il décide **quel outil appeler, quand,
 avec quels arguments**, exécute la boucle jusqu'à une réponse finale. Cible principale : le
-serveur MCP de l'**atelier 1** (enveloppes AVISIA), plus un mini MCP météo **fictif** fourni
-pour illustrer la gestion de plusieurs outils.
+serveur MCP de l'**atelier 1** (enveloppes AVISIA), plus un mini MCP catalogue
+formations/certifications **fictif** fourni pour illustrer la gestion de plusieurs outils.
 
 > Un **agent**, ce n'est pas le MCP : le MCP **expose** des capacités, l'agent **décide** et
 > **enchaîne** les appels. Ici, l'agent est un client MCP (SDK officiel `mcp`) + une boucle
@@ -38,7 +38,7 @@ fichiers diffère, redéfinis `ATELIER1_DIR` en variable d'environnement.
 | --- | --- |
 | `atelier/` | **squelette à compléter** — tu n'écris que du métier (`# TODO`) |
 | `solution/` | la version **complète et fonctionnelle** (référence / dépannage) |
-| `mcp_meteo/` | mini MCP **fictif** fourni (données mockées) — 2ᵉ outil de l'exercice 4 |
+| `mcp_formations/` | mini MCP **fictif** fourni (catalogue formations mocké) — 2ᵉ outil de l'exercice 4 |
 | `check.py` | pré-vol : dépendances, clé API, MCP atelier 1 accessible |
 
 `config.py` (modèle, chemins des MCP) = **plomberie fournie**, identique dans les deux
@@ -71,11 +71,12 @@ exactement le protocole vu côté serveur en atelier 1, mais ici côté **client
 | MCP | Outils | Données |
 | --- | --- | --- |
 | **enveloppes** (atelier 1) | `list_envelopes`, `list_factures_a_classer`, `read_invoice`, `record_expense`, `get_balance` | réel (local, `.xlsx`) |
-| **meteo** (`mcp_meteo/`) | `get_meteo` | **100 % fictif / mocké**, aucun appel réseau |
+| **formations** (`mcp_formations/`) | `list_formations`, `search_formations`, `get_formation` | **100 % fictif / mocké**, aucun appel réseau |
 
-> ⚠️ Aucune donnée réelle AVISIA n'est utilisée nulle part dans cet atelier. Le MCP météo
-> est un jeu de données inventé (4 villes), fourni uniquement pour illustrer la gestion de
-> plusieurs outils côté agent.
+> ⚠️ Aucune donnée réelle AVISIA n'est utilisée nulle part dans cet atelier. Le MCP
+> formations est un catalogue inventé (une dizaine de formations/certifications), fourni
+> uniquement pour illustrer la gestion de plusieurs outils côté agent — et son croisement
+> avec le budget de l'enveloppe APPRENTISSAGE (atelier 1) dans la démo finale.
 
 ## Où est la clé API
 

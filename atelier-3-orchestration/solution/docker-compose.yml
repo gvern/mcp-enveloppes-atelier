@@ -1,0 +1,26 @@
+# Build + lance le MCP enveloppes en HTTP (voir solution/auth.py et solution/Dockerfile).
+#
+# Lancer depuis atelier-3-orchestration/ :
+#   docker compose -f solution/docker-compose.yml up --build
+#
+# Sans clé (exercices 1-2, si tu testes solution/auth.py "à blanc") : MCP_API_KEY est vide,
+# donc TOUTES les requêtes sont rejetées côté solution (fail-closed) — définis-la :
+#   MCP_API_KEY=une-cle-secrete docker compose -f solution/docker-compose.yml up --build
+
+services:
+  mcp-enveloppes:
+    build:
+      context: ../..  # racine du mono-repo : englobe atelier-1-serveur-mcp/ ET cet atelier
+      dockerfile: atelier-3-orchestration/solution/Dockerfile
+    image: enveloppes-mcp:solution
+    ports:
+      - "8765:8765"
+    environment:
+      MCP_API_KEY: "${MCP_API_KEY:-}"
+    volumes:
+      # Persistance des .xlsx / factures entre deux redémarrages du conteneur (sinon tout
+      # est perdu à chaque `docker compose down` : le conteneur est éphémère par nature).
+      - mcp_data:/app/notes_de_frais
+
+volumes:
+  mcp_data:

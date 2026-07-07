@@ -1,0 +1,25 @@
+# Build + lance le MCP enveloppes en HTTP (voir atelier/auth.py et atelier/Dockerfile).
+#
+# Lancer depuis atelier-3-orchestration/ :
+#   docker compose -f atelier/docker-compose.yml up --build
+#
+# Exercice 2 : tant que le TODO 1 (EXPOSE/CMD dans atelier/Dockerfile) n'est pas fait, le
+# conteneur démarre mais ne lance rien d'utile — c'est attendu, complète le TODO 1 d'abord.
+
+services:
+  mcp-enveloppes:
+    build:
+      context: ../..  # racine du mono-repo : englobe atelier-1-serveur-mcp/ ET cet atelier
+      dockerfile: atelier-3-orchestration/atelier/Dockerfile
+    image: enveloppes-mcp:atelier
+    ports:
+      - "8765:8765"
+    environment:
+      MCP_API_KEY: "${MCP_API_KEY:-}"
+    volumes:
+      # Persistance des .xlsx / factures entre deux redémarrages du conteneur (sinon tout
+      # est perdu à chaque `docker compose down` : le conteneur est éphémère par nature).
+      - mcp_data:/app/notes_de_frais
+
+volumes:
+  mcp_data:

@@ -54,9 +54,11 @@ Vérifie : `uv --version`.
 
 ### b. Installer les dépendances et lancer le pré-vol
 
-Dans le dossier du projet :
+**Toutes les commandes de cet atelier se lancent depuis `atelier-1-serveur-mcp/`** (ce
+sous-dossier du repo) :
 
 ```bash
+cd atelier-1-serveur-mcp   # si tu n'y es pas déjà
 uv sync                 # installe mcp, openpyxl, pymupdf (rien d'autre à installer)
 uv run python check.py  # pré-vol : vérifie tout + crée 3 factures de test
 ```
@@ -73,7 +75,7 @@ Réglages → Développeur → Modifier la config, puis (remplace le chemin abso
   "mcpServers": {
     "enveloppes-atelier": {
       "command": "uv",
-      "args": ["run", "--directory", "/CHEMIN/ABSOLU/atelier-mcp-enveloppes", "python", "atelier/server.py"]
+      "args": ["run", "--directory", "/CHEMIN/ABSOLU/atelier-mcp-enveloppes/atelier-1-serveur-mcp", "python", "atelier/server.py"]
     }
   }
 }
@@ -375,8 +377,10 @@ rm -rf notes_de_frais factures_a_classer && uv run python check.py
 
 ## Pour l'animateur *(pas pour les participants)*
 
-**Timing (~2 h) :** 15 min pitch + tableau « qui déclenche quoi » · 10 min setup/`check.py` ·
-4×~15 min exercices 3→7 (l'exo 5 est le sommet) · 15 min démo finale + Q/R.
+**Timing (~2 h, ~102 min occupées) :** 15 min pitch + tableau « qui déclenche quoi » ·
+10 min setup/`check.py` · 5 min exo 1 (rédaction des `hint`) · 3 min exo 2 (lecture, rien à
+coder) · 12 min exo 3 · 12 min exo 4 · 15 min exo 5 (le sommet) · 10 min exo 6 · 10 min exo 7 ·
+10 min démo finale + Q/R. ~18 min de marge pour les blocages.
 
 **Pièges à éviter :**
 

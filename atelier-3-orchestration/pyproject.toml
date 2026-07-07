@@ -1,0 +1,20 @@
+[project]
+name = "atelier-3-orchestration"
+version = "0.1.0"
+description = "Atelier AVISIA — orchestration & déploiement : du MCP en stdio au MCP en HTTP, authentifié, déployable (Docker, Cloud Run)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp[cli]>=1.27.2",
+    "starlette>=0.40",
+    "uvicorn>=0.30",
+    "httpx>=0.27",
+    # requis pour IMPORTER le serveur de l'atelier 1 tel quel (auth.py fait `import server`) —
+    # mêmes dépendances que atelier-1-serveur-mcp/pyproject.toml, pas de logique dupliquée.
+    "openpyxl>=3.1.5",
+    "pymupdf>=1.24",
+]
+
+[tool.uv]
+# Projet applicatif (pas une lib publiée) : uv gère deps + lancement, sans build du package.
+package = false

@@ -1,0 +1,14 @@
+[project]
+name = "atelier-2-agent"
+version = "0.1.0"
+description = "Atelier AVISIA — Agent qui pilote un ou plusieurs serveurs MCP (SDK officiel mcp + anthropic)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp[cli]>=1.27.2",
+    "anthropic>=0.40.0",
+]
+
+[tool.uv]
+# Projet applicatif (pas une lib publiée) : uv gère deps + lancement, sans build du package.
+package = false

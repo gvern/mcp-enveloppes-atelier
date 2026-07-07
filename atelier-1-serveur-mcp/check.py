@@ -44,7 +44,7 @@ if not list(inbox.glob("*.pdf")):
             "openai_chatgpt.pdf": "OpenAI, LLC\nReceipt #2026-OA-77123\nDate: 01/06/2026\n"
                                   "ChatGPT Plus subscription (monthly)\nTotal: 22,00 EUR",
             "decathlon_sport.pdf": "DECATHLON Paris\nTicket 2026-IDF-9920\nDate: 09/06/2026\n"
-                                   "Paire de chaussures running\nMontant TTC: 64,99 EUR",
+                                   "Equipement trail + chaussures running\nMontant TTC: 489,90 EUR",
         }
         for name, body in echantillons.items():
             d = fitz.open(); p = d.new_page(); p.insert_text((72, 90), body, fontsize=11)

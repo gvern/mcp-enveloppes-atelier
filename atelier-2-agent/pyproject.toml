@@ -1,12 +1,12 @@
 [project]
 name = "atelier-2-agent"
 version = "0.1.0"
-description = "Atelier AVISIA — Agent qui pilote un ou plusieurs serveurs MCP (SDK officiel mcp + anthropic)"
+description = "Atelier AVISIA — Agent qui pilote un ou plusieurs serveurs MCP (SDK officiel mcp + google-genai)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "mcp[cli]>=1.27.2",
-    "anthropic>=0.40.0",
+    "google-genai>=1.0.0",
 ]
 
 [tool.uv]

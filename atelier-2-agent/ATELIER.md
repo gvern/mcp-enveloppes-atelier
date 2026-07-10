@@ -6,7 +6,7 @@ En atelier 1, tu as construit un **MCP** : une boîte à outils exposée à un L
 construis l'**agent** : celui qui **tient le LLM par la main**, boucle après boucle, entre
 l'utilisateur et les outils.
 
-|           | Le LLM (Anthropic)                                    | L'agent (toi, la boucle)                                    |
+|           | Le LLM (Gemini)                                       | L'agent (toi, la boucle)                                    |
 | --------- | ------------------------------------------------------ | ------------------------------------------------------------- |
 | fait quoi | lit les tools disponibles, **décide** lesquels appeler et avec quels arguments | **exécute** l'appel sur le bon MCP, **renvoie** le résultat, **répète** |
 | fiable ?  | non (peut boucler, se tromper d'outil)                 | oui (le code décide QUAND s'arrêter, QUOI faire d'une erreur) |
@@ -57,8 +57,8 @@ cd ../atelier-1-serveur-mcp && uv sync && cd -
 **Toutes les commandes de cet atelier se lancent depuis `atelier-2-agent/`** :
 
 ```bash
-uv sync                        # mcp, anthropic
-export ANTHROPIC_API_KEY=sk-ant-...   # jamais dans le code, jamais commit
+uv sync                        # mcp, google-genai
+export GEMINI_API_KEY=...             # jamais dans le code, jamais commit
 uv run python check.py         # pré-vol
 ```
 
@@ -157,12 +157,13 @@ l'atelier.
 ✏️ **Ce que tu fais :** dans `atelier/agent.py`, remplace le `raise NotImplementedError(...)`
 du TODO 3 par la boucle décrite juste au-dessus dans les commentaires :
 
-1. appelle `self.anthropic.messages.create(...)` avec `tools=self.tools_schema` ;
-2. ajoute la réponse à `messages` ;
-3. si `response.stop_reason != "tool_use"` → renvoie le texte final ;
-4. sinon, pour chaque bloc `tool_use` : appelle `self._call_tool(block.name, block.input)`
-   (déjà écrit — route vers le bon MCP), construis un bloc `tool_result`, renvoie tout au
-   modèle, boucle.
+1. appelle `self.client.models.generate_content(...)` avec `tools=[types.Tool(function_declarations=self.tools_schema)]` ;
+2. ajoute la réponse à `contents` (`response.candidates[0].content`) ;
+3. si `response.function_calls` est vide → renvoie `response.text` (réponse finale) ;
+4. sinon, pour chaque `fc` de `response.function_calls` : appelle
+   `await self._call_tool(fc.name, fc.args or {})` (déjà écrit — route vers le bon MCP),
+   construis un `types.Part.from_function_response(...)`, renvoie tout au modèle (dans un
+   seul `Content(role="tool", parts=[...])`), boucle.
 
 🧪 **Teste :**
 
@@ -184,41 +185,43 @@ lignes `🛠️  appel ...` défiler (les tool_calls) avant la réponse finale `
 
 ```python
 async def run(self, user_message: str) -> str:
-    messages = [{"role": "user", "content": user_message}]
+    contents = [types.Content(role="user", parts=[types.Part.from_text(text=user_message)])]
+    gen_config = types.GenerateContentConfig(
+        system_instruction=config.SYSTEM_PROMPT,
+        max_output_tokens=config.MAX_TOKENS,
+        tools=[types.Tool(function_declarations=self.tools_schema)],
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+    )
     while True:
-        response = self.anthropic.messages.create(
+        response = self.client.models.generate_content(
             model=config.MODEL,
-            max_tokens=config.MAX_TOKENS,
-            system=config.SYSTEM_PROMPT,
-            tools=self.tools_schema,
-            messages=messages,
+            contents=contents,
+            config=gen_config,
         )
-        messages.append({"role": "assistant", "content": response.content})
+        contents.append(response.candidates[0].content)
 
-        if response.stop_reason != "tool_use":
-            return "".join(b.text for b in response.content if b.type == "text")
+        function_calls = response.function_calls
+        if not function_calls:
+            return response.text or ""
 
-        tool_results = []
-        for block in response.content:
-            if block.type != "tool_use":
-                continue
+        response_parts = []
+        for fc in function_calls:
             try:
-                output = await self._call_tool(block.name, block.input)
+                output = await self._call_tool(fc.name, fc.args or {})
+                result = {"result": output}
             except Exception as e:
-                output = f"Erreur lors de l'appel de {block.name} : {e}"
-            tool_results.append({
-                "type": "tool_result",
-                "tool_use_id": block.id,
-                "content": output,
-            })
-        messages.append({"role": "user", "content": tool_results})
+                result = {"error": f"Erreur lors de l'appel de {fc.name} : {e}"}
+            response_parts.append(types.Part.from_function_response(
+                name=fc.name, response=result,
+            ))
+        contents.append(types.Content(role="tool", parts=response_parts))
 ```
 
 </details>
 
-> 💡 **À discuter :** que se passerait-il si on oubliait de renvoyer le `tool_result` au
-> modèle ? (Réponse : le modèle ne saurait jamais ce que l'outil a répondu — il ne peut pas
-> "voir" l'exécution, seulement ce qu'on lui renvoie explicitement dans `messages`.)
+> 💡 **À discuter :** que se passerait-il si on oubliait de renvoyer le `function_response`
+> au modèle ? (Réponse : le modèle ne saurait jamais ce que l'outil a répondu — il ne peut pas
+> "voir" l'exécution, seulement ce qu'on lui renvoie explicitement dans `contents`.)
 
 ---
 
@@ -290,9 +293,9 @@ propre état (voir sa section « Réinitialiser » dans son `ATELIER.md`).
 
 | Symptôme                                     | Cause la plus fréquente                     | Solution                                                        |
 | --------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------- |
-| `check.py` affiche un ❌ sur la clé API      | `ANTHROPIC_API_KEY` non exportée            | `export ANTHROPIC_API_KEY=sk-ant-...` dans le même terminal       |
+| `check.py` affiche un ❌ sur la clé API      | `GEMINI_API_KEY` non exportée               | `export GEMINI_API_KEY=...` dans le même terminal                 |
 | `check.py` ne trouve pas l'atelier 1          | dossiers pas voisins, ou atelier 1 pas sync | `cd ../atelier-1-serveur-mcp && uv sync`                          |
-| L'agent boucle sans jamais répondre           | `stop_reason` mal testé, ou `tool_result` pas renvoyé | compare avec `solution/agent.py`                        |
+| L'agent boucle sans jamais répondre           | `function_calls` mal testé, ou `function_response` pas renvoyé | compare avec `solution/agent.py`                  |
 | `KeyError` sur un nom de tool                 | `tool_to_server` pas à jour (2ᵉ MCP mal branché) | vérifie l'entrée `"formations"` dans `MCP_SERVERS`            |
 | L'agent mélange enveloppes et formations      | `SYSTEM_PROMPT` pas assez précis            | relis l'exercice 4b — c'est le prompt qui arbitre                 |
 
@@ -321,8 +324,8 @@ setup/`check.py` (dont vérif atelier 1) · 10 min exo 1 (connexion, lecture) ·
 
 **Points de discussion à provoquer :**
 
-- Exo 3 : que se passe-t-il si on ne renvoie jamais le `tool_result` ? *Le modèle ne "voit"
-  que ce qu'on lui donne explicitement — pas d'exécution magique.*
+- Exo 3 : que se passe-t-il si on ne renvoie jamais le `function_response` ? *Le modèle ne
+  "voit" que ce qu'on lui donne explicitement — pas d'exécution magique.*
 - Exo 4 : brancher un 2ᵉ MCP ne touche ni au protocole ni à la boucle — seulement à
   `MCP_SERVERS` et au `SYSTEM_PROMPT`. *Un agent bien structuré scale par la donnée, pas
   par le code.*

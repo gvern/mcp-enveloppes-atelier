@@ -2,7 +2,7 @@
 
 Vérifie l'environnement (dépendances, clé API) et que le MCP de l'atelier 1 (réutilisé
 comme cible via solution/server.py) est accessible en stdio. Aucun secret n'est stocké ni
-affiché : ANTHROPIC_API_KEY est lue depuis l'environnement uniquement, jamais depuis le
+affiché : GEMINI_API_KEY est lue depuis l'environnement uniquement, jamais depuis le
 code — si elle manque, ce script le signale proprement (pas de traceback).
 """
 
@@ -24,15 +24,16 @@ def check(label: str, cond: bool, hint: str = "") -> None:
 
 # 1. dépendances
 try:
-    import mcp, anthropic  # noqa: F401
-    check("Dépendances (mcp, anthropic)", True)
+    import mcp
+    from google import genai  # noqa: F401
+    check("Dépendances (mcp, google-genai)", True)
 except Exception as e:  # noqa: BLE001
-    check("Dépendances (mcp, anthropic)", False, f"{e} — lance `uv sync`")
+    check("Dépendances (mcp, google-genai)", False, f"{e} — lance `uv sync`")
 
 # 2. clé API — on vérifie juste sa PRÉSENCE, jamais sa valeur (rien n'est affiché/loggé)
-has_key = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
-check("Variable d'environnement ANTHROPIC_API_KEY définie", has_key,
-      "export ANTHROPIC_API_KEY=sk-ant-... (jamais dans le code, jamais commit)")
+has_key = bool(os.environ.get("GEMINI_API_KEY", "").strip())
+check("Variable d'environnement GEMINI_API_KEY définie", has_key,
+      "export GEMINI_API_KEY=... (jamais dans le code, jamais commit)")
 
 # 3. le mini MCP catalogue formations fourni est bien en place
 formations_script = ROOT / "mcp_formations" / "server.py"
@@ -86,5 +87,5 @@ if ok:
 else:
     print("⚠️  Corrige les ❌ ci-dessus quand tu peux.")
     print("   Pas de clé API sous la main ? Tu peux quand même avancer sur les exercices")
-    print("   1, 2 et 4a (rien de tout ça n'appelle le modèle Anthropic).")
+    print("   1, 2 et 4a (rien de tout ça n'appelle le modèle Gemini).")
     sys.exit(1)

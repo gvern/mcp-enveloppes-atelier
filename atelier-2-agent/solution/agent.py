@@ -1,10 +1,10 @@
-"""Agent — pilote un ou plusieurs serveurs MCP via tool-calling Anthropic (SOLUTION).
+"""Agent — pilote un ou plusieurs serveurs MCP via tool-calling Gemini (SOLUTION).
 
 Connexion : chaque MCP déclaré dans config.MCP_SERVERS est lancé en stdio (sous-processus),
-comme `mcp dev` le fait côté atelier 1. Boucle : on envoie `messages` au modèle avec les
-tools agrégés de tous les MCP connectés ; tant que le modèle répond par des tool_use, on
-les exécute sur le BON serveur (via tool_to_server) et on renvoie les résultats ; on
-s'arrête à la première réponse sans tool_use.
+comme `mcp dev` le fait côté atelier 1. Boucle : on envoie `contents` au modèle avec les
+tools agrégés de tous les MCP connectés ; tant que le modèle répond par des function_calls,
+on les exécute sur le BON serveur (via tool_to_server) et on renvoie les résultats ; on
+s'arrête à la première réponse sans function_call.
 
 Lancer :
   uv run python solution/agent.py "Classe les factures de la boîte à classer"
@@ -15,7 +15,8 @@ import asyncio
 import sys
 from contextlib import AsyncExitStack
 
-from anthropic import Anthropic
+from google import genai
+from google.genai import types
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
@@ -41,14 +42,14 @@ async def demo_list_tools() -> None:
 
 
 class MCPAgent:
-    """Un agent Anthropic qui pilote N serveurs MCP connectés en stdio."""
+    """Un agent Gemini qui pilote N serveurs MCP connectés en stdio."""
 
     def __init__(self) -> None:
-        self.anthropic = Anthropic()  # lit ANTHROPIC_API_KEY dans l'environnement
+        self.client = genai.Client()  # lit GEMINI_API_KEY dans l'environnement
         self._stack = AsyncExitStack()
         self.sessions: dict[str, ClientSession] = {}
         self.tool_to_server: dict[str, str] = {}
-        self.tools_schema: list[dict] = []
+        self.tools_schema: list[types.FunctionDeclaration] = []
 
     async def connect_all(self) -> None:
         """Lance chaque MCP de config.MCP_SERVERS (stdio) et agrège leurs tools."""
@@ -63,11 +64,11 @@ class MCPAgent:
             listed = await session.list_tools()
             for t in listed.tools:
                 self.tool_to_server[t.name] = name
-                self.tools_schema.append({
-                    "name": t.name,
-                    "description": t.description or "",
-                    "input_schema": t.inputSchema,
-                })
+                self.tools_schema.append(types.FunctionDeclaration(
+                    name=t.name,
+                    description=t.description or "",
+                    parameters_json_schema=t.inputSchema,
+                ))
             print(f"🔌 connecté à « {name} » — {len(listed.tools)} tool(s)")
 
     async def _call_tool(self, name: str, arguments: dict) -> str:
@@ -77,36 +78,38 @@ class MCPAgent:
         return "\n".join(b.text for b in result.content if getattr(b, "text", None))
 
     async def run(self, user_message: str) -> str:
-        """Boucle agentique : appelle le modèle, exécute ses tool_calls, jusqu'à réponse finale."""
-        messages = [{"role": "user", "content": user_message}]
+        """Boucle agentique : appelle le modèle, exécute ses function_calls, jusqu'à réponse finale."""
+        contents = [types.Content(role="user", parts=[types.Part.from_text(text=user_message)])]
+        gen_config = types.GenerateContentConfig(
+            system_instruction=config.SYSTEM_PROMPT,
+            max_output_tokens=config.MAX_TOKENS,
+            tools=[types.Tool(function_declarations=self.tools_schema)],
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+        )
         while True:
-            response = self.anthropic.messages.create(
+            response = self.client.models.generate_content(
                 model=config.MODEL,
-                max_tokens=config.MAX_TOKENS,
-                system=config.SYSTEM_PROMPT,
-                tools=self.tools_schema,
-                messages=messages,
+                contents=contents,
+                config=gen_config,
             )
-            messages.append({"role": "assistant", "content": response.content})
+            contents.append(response.candidates[0].content)
 
-            if response.stop_reason != "tool_use":
-                return "".join(b.text for b in response.content if b.type == "text")
+            function_calls = response.function_calls
+            if not function_calls:
+                return response.text or ""
 
-            tool_results = []
-            for block in response.content:
-                if block.type != "tool_use":
-                    continue
-                print(f"🛠️  appel {block.name}({block.input})")
+            response_parts = []
+            for fc in function_calls:
+                print(f"🛠️  appel {fc.name}({fc.args})")
                 try:
-                    output = await self._call_tool(block.name, block.input)
+                    output = await self._call_tool(fc.name, fc.args or {})
+                    result = {"result": output}
                 except Exception as e:  # noqa: BLE001
-                    output = f"Erreur lors de l'appel de {block.name} : {e}"
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": output,
-                })
-            messages.append({"role": "user", "content": tool_results})
+                    result = {"error": f"Erreur lors de l'appel de {fc.name} : {e}"}
+                response_parts.append(types.Part.from_function_response(
+                    name=fc.name, response=result,
+                ))
+            contents.append(types.Content(role="tool", parts=response_parts))
 
     async def aclose(self) -> None:
         await self._stack.aclose()

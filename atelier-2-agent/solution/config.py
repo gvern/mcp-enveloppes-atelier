@@ -1,4 +1,4 @@
-"""Configuration de l'agent — modèle Anthropic, system prompt, MCP pilotés (SOLUTION).
+"""Configuration de l'agent — modèle Gemini, system prompt, MCP pilotés (SOLUTION).
 
 ⚙️ PLOMBERIE : chemins des MCP et nom du modèle sont déjà réglés pour que rien ne plante.
 Le texte MÉTIER de cet atelier, c'est le SYSTEM_PROMPT (exercice 2) et la liste des MCP
@@ -11,9 +11,9 @@ from pathlib import Path
 ATELIER_DIR = Path(__file__).resolve().parent.parent    # atelier-2-agent/
 MONOREPO_ROOT = ATELIER_DIR.parent                        # racine du mono-repo
 
-# Modèle Anthropic utilisé par l'agent (tool use). Redéfinissable via env, sans toucher
+# Modèle Gemini utilisé par l'agent (tool use). Redéfinissable via env, sans toucher
 # au code, si un autre modèle est disponible sur ton compte.
-MODEL = os.environ.get("AGENT_MODEL", "claude-3-5-sonnet-20241022")
+MODEL = os.environ.get("AGENT_MODEL", "gemini-2.5-flash")
 MAX_TOKENS = 1024
 
 # Dossier de l'atelier 1 (le MCP cible est réutilisé TEL QUEL, via solution/server.py —

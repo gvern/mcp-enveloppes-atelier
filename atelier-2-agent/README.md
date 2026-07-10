@@ -1,14 +1,14 @@
 # Agent AVISIA — atelier de découverte
 
 Un **agent** 100 % local qui pilote un ou plusieurs serveurs **MCP** via le tool-calling de
-l'API Anthropic : tu lui parles en langage naturel, il décide **quel outil appeler, quand,
+l'API Gemini : tu lui parles en langage naturel, il décide **quel outil appeler, quand,
 avec quels arguments**, exécute la boucle jusqu'à une réponse finale. Cible principale : le
 serveur MCP de l'**atelier 1** (enveloppes AVISIA), plus un mini MCP catalogue
 formations/certifications **fictif** fourni pour illustrer la gestion de plusieurs outils.
 
 > Un **agent**, ce n'est pas le MCP : le MCP **expose** des capacités, l'agent **décide** et
 > **enchaîne** les appels. Ici, l'agent est un client MCP (SDK officiel `mcp`) + une boucle
-> de tool-calling Anthropic (SDK officiel `anthropic`). Rien d'autre.
+> de tool-calling Gemini (SDK officiel `google-genai`). Rien d'autre.
 
 ## 🎓 Tu viens pour l'atelier ?
 
@@ -18,8 +18,8 @@ squelette `atelier/`, sans installer quoi que ce soit d'autre que `uv sync`.
 Toutes les commandes ci-dessous se lancent **depuis ce dossier** (`atelier-2-agent/`) :
 
 ```bash
-uv sync                       # mcp, anthropic
-export ANTHROPIC_API_KEY=...  # ta clé (jamais dans le code, jamais commit)
+uv sync                       # mcp, google-genai
+export GEMINI_API_KEY=...     # ta clé (jamais dans le code, jamais commit)
 uv run python check.py        # pré-vol : deps, clé API, MCP atelier 1 accessible
 ```
 
@@ -50,15 +50,15 @@ dossiers, sauf le `SYSTEM_PROMPT` et la liste `MCP_SERVERS` (le métier de l'ate
 utilisateur ──▶ agent.run(message)
                     │
                     ▼
-        Anthropic.messages.create(tools=…)
+        client.models.generate_content(tools=…)
                     │
-        stop_reason == "tool_use" ? ──non──▶ réponse finale
-                    │ oui
+        response.function_calls vide ? ──oui──▶ réponse finale
+                    │ non
                     ▼
-      pour chaque tool_use : agent._call_tool(name, args)
+      pour chaque function_call : agent._call_tool(name, args)
       → routé vers le BON serveur MCP (tool_to_server)
                     │
-        résultats renvoyés au modèle (tool_result)
+        résultats renvoyés au modèle (function_response)
                     │
                     └──────────────▶ (retour en haut de boucle)
 ```
@@ -80,18 +80,18 @@ exactement le protocole vu côté serveur en atelier 1, mais ici côté **client
 
 ## Où est la clé API
 
-`ANTHROPIC_API_KEY` est lue **uniquement** depuis la variable d'environnement (SDK
-`anthropic`, lecture automatique). Elle n'apparaît **jamais** dans le code, n'est **jamais**
+`GEMINI_API_KEY` est lue **uniquement** depuis la variable d'environnement (SDK
+`google-genai`, lecture automatique). Elle n'apparaît **jamais** dans le code, n'est **jamais**
 affichée par `check.py`, et ne doit **jamais** être committée.
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
+export GEMINI_API_KEY=...
 ```
 
 ## Prérequis
 
 - **[uv](https://docs.astral.sh/uv/)** — gère Python + dépendances.
 - **Python ≥ 3.12** — installé par `uv` au besoin.
-- **Une clé API Anthropic** — pour les exercices 3, 4 et la démo finale (les exercices 1,
+- **Une clé API Gemini** — pour les exercices 3, 4 et la démo finale (les exercices 1,
   2 et 4a n'en ont pas besoin).
 - **`atelier-1-serveur-mcp/` déjà prêt** (`uv sync` lancé dedans) — voir plus haut.

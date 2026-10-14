@@ -17,6 +17,7 @@ from pathlib import Path
 import uvicorn
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
+from mcp.server.transport_security import TransportSecuritySettings
 from starlette.responses import JSONResponse
 
 # ⚙️ PLOMBERIE — importe le serveur MCP de l'atelier 1 TEL QUEL. En Docker, le Dockerfile
@@ -43,6 +44,13 @@ HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8765"))
 mcp_server.mcp.settings.host = HOST
 mcp_server.mcp.settings.port = PORT
+# ⚙️ PLOMBERIE — le SDK MCP n'autorise par défaut que le Host `localhost`/`127.0.0.1` (protection
+# DNS-rebinding, activée à la construction du serveur car l'atelier 1 écoute sur 127.0.0.1).
+# Derrière Cloud Run, le Host est `*.run.app` → sans cette ligne : « 421 Invalid Host header ».
+# Cette protection vise les serveurs locaux SANS authentification ; ici, la clé API est exigée.
+mcp_server.mcp.settings.transport_security = TransportSecuritySettings(
+    enable_dns_rebinding_protection=False
+)
 
 mcp_app = mcp_server.mcp.streamable_http_app()
 

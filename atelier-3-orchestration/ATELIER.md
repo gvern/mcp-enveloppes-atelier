@@ -230,29 +230,45 @@ mcp_app.add_middleware(APIKeyMiddleware)
 > ne bloque pas dessus.
 
 🎯 **Ce que tu observes :** comment l'image construite en local part sur une plateforme qui
-la fait tourner en continu, avec une URL HTTPS publique.
+la fait tourner en continu, avec une URL HTTPS (protégée, voir ci-dessous).
 
 Principe (Cloud Run GCP, ou équivalent Cloud Avisia) — **placeholders explicites, jamais de
 vraies valeurs** :
 
 ```bash
 # 1. Construire et pousser l'image vers un registre
-docker build -f solution/Dockerfile -t "$REGION-docker.pkg.dev/$PROJECT_ID/mcp/enveloppes:1.0" ..
+#    --platform linux/amd64 : OBLIGATOIRE sur un Mac Apple Silicon (arm64 par défaut), car
+#    Cloud Run n'exécute que de l'amd64.
+docker build --platform linux/amd64 -f solution/Dockerfile \
+  -t "$REGION-docker.pkg.dev/$PROJECT_ID/mcp/enveloppes:1.0" ..
 docker push "$REGION-docker.pkg.dev/$PROJECT_ID/mcp/enveloppes:1.0"
 
-# 2. Déployer sur Cloud Run
+# 2. Déployer sur Cloud Run (service PRIVÉ : protégé par l'IAM de la plateforme)
 gcloud run deploy enveloppes-mcp \
   --image "$REGION-docker.pkg.dev/$PROJECT_ID/mcp/enveloppes:1.0" \
   --region "$REGION" \
-  --set-env-vars "MCP_API_KEY=$MCP_API_KEY" \
-  --allow-unauthenticated   # l'auth est gérée par NOTRE middleware, pas par Cloud Run
+  --port 8765 \
+  --max-instances 1 \
+  --set-env-vars "MCP_API_KEY=$MCP_API_KEY"
+
+# 3. Après la démo : supprimer le service (il reste en ligne tant qu'on ne le supprime pas)
+gcloud run services delete enveloppes-mcp --region "$REGION"
 ```
 
 `$PROJECT_ID`, `$REGION`, `$MCP_API_KEY` : variables d'environnement définies au moment du
-déploiement, **jamais commitées**. `--allow-unauthenticated` peut surprendre : c'est
-volontaire, l'accès est déjà contrôlé par `X-API-Key` au niveau applicatif (exercice 3) —
-sur un vrai environnement de prod AVISIA, on ajouterait EN PLUS l'authentification IAM de la
-plateforme cloud (double couche), hors périmètre de cet atelier.
+déploiement, **jamais commitées**. Génère la clé au hasard (`openssl rand -hex 24`).
+
+**Pourquoi pas `--allow-unauthenticated` ?** Sur les projets AVISIA, une politique
+d'organisation interdit d'ouvrir un service à tout Internet (`allUsers`) : le déploiement
+réussit, mais le service reste **privé** et répond `403` à toute requête sans jeton Google,
+même avec la bonne `X-API-Key`. On a donc **deux couches** : l'IAM de la plateforme (jeton
+Google, `gcloud auth print-identity-token`, valable ~1 h) puis notre clé `X-API-Key`
+(exercice 3). C'est d'ailleurs la bonne pratique en production.
+
+`--max-instances 1` borne la montée en charge (et donc le coût) du service de démo ; il ne
+plafonne pas le nombre de requêtes. Sur Cloud Run, il n'y a **pas de volume** : les `.xlsx`
+écrits par `record_expense` sont perdus à chaque redémarrage de l'instance (c'est le volume
+`docker compose` qui les conservait en local).
 
 ✅ **Tu dois pouvoir répondre à :** pourquoi l'image doit-elle écouter sur `$PORT` fourni par
 Cloud Run (et pas un port fixe) ? *(Cloud Run assigne le port dynamiquement via la variable
@@ -268,6 +284,35 @@ celui de l'atelier 2) pour parler au MCP **déployé**, à la place du stdio loc
 ✏️ **Claude Desktop** ne sait nativement lancer que des MCP en stdio. Pour du HTTP distant,
 utilise un pont `mcp-remote` dans sa config (`claude_desktop_config.json`) :
 
+> Prérequis : **Node.js** (pour `npx`) et **Claude Desktop**. Après toute modification de
+> `claude_desktop_config.json`, **quitte complètement Claude Desktop (Cmd+Q / clic droit →
+> Quitter) puis relance-le** : fermer la fenêtre ne suffit pas.
+
+**a. MCP local** (le conteneur de l'exercice 2/3, sur `http://127.0.0.1:8765`) :
+
+```json
+{
+  "mcpServers": {
+    "enveloppes-distant": {
+      "command": "npx",
+      "args": [
+        "-y", "mcp-remote", "http://127.0.0.1:8765/mcp", "--allow-http",
+        "--header", "X-API-Key:${MCP_API_KEY}"
+      ],
+      "env": { "MCP_API_KEY": "la-meme-cle-que-le-serveur" }
+    }
+  }
+}
+```
+
+`--allow-http` est **indispensable** pour une URL en `http://` (sans lui, `mcp-remote` la
+refuse) ; il est inutile pour une URL Cloud Run en `https://`. Une clé fausse donne un message
+trompeur (« Dynamic Client Registration rejected (HTTP 401) ») : c'est simplement la clé qui
+ne correspond pas à `MCP_API_KEY` côté serveur.
+
+**b. MCP déployé sur Cloud Run (service privé)** — il faut aussi le jeton Google, passé via
+une variable d'environnement (l'espace de `Bearer <jeton>` pose problème dans les arguments) :
+
 ```json
 {
   "mcpServers": {
@@ -275,15 +320,25 @@ utilise un pont `mcp-remote` dans sa config (`claude_desktop_config.json`) :
       "command": "npx",
       "args": [
         "-y", "mcp-remote", "https://ENVELOPPES-MCP-URL.run.app/mcp",
-        "--header", "X-API-Key:${MCP_API_KEY}"
-      ]
+        "--header", "X-API-Key:${MCP_API_KEY}",
+        "--header", "Authorization:${AUTH_HEADER}"
+      ],
+      "env": {
+        "MCP_API_KEY": "la-cle-du-service",
+        "AUTH_HEADER": "Bearer <sortie de : gcloud auth print-identity-token>"
+      }
     }
   }
 }
 ```
 
+Le jeton Google **expire au bout d'environ 1 h** : régénère-le et relance Claude Desktop si
+la connexion tombe. Sans jeton valide, `mcp-remote` n'affiche pas de `403` clair : il lance
+un flux d'authentification OAuth et attend.
+
 ✏️ **Un agent Python** (comme celui de l'atelier 2) — même mécanique que l'exercice 2, avec
-l'URL distante et l'en-tête en plus :
+l'URL distante et l'en-tête en plus (sur un service Cloud Run privé, ajoute aussi
+`"Authorization": f"Bearer {google_id_token}"`) :
 
 ```python
 async with streamablehttp_client(
@@ -322,6 +377,10 @@ persistance des `.xlsx` créé à l'exercice 2).
 | Le conteneur démarre mais rien ne répond          | TODO 1 (EXPOSE/CMD) pas décommenté                  | relis `atelier/Dockerfile`                                            |
 | `curl`/client Python : connexion refusée          | serveur qui écoute sur `127.0.0.1` au lieu de `0.0.0.0` | ne PAS lancer `solution/server.py` directement dans le conteneur — utilise `auth.py` |
 | Toutes les requêtes en `401`, même avec la clé    | `MCP_API_KEY` différente entre client et serveur, ou pas propagée au conteneur | vérifie `docker compose ... -e` / la variable d'env exportée |
+| `Cannot connect to the Docker daemon`            | Docker Desktop installé mais pas démarré            | lance Docker Desktop, attends qu'il soit prêt, vérifie avec `docker info` |
+| Cloud Run : `403` même avec la bonne clé          | service privé (IAM) : jeton Google manquant         | ajoute `Authorization: Bearer $(gcloud auth print-identity-token)` (exercice 4) |
+| Cloud Run : le déploiement échoue / ne démarre pas | image `arm64` construite sur un Mac Apple Silicon   | reconstruis avec `docker build --platform linux/amd64 ...`           |
+| `mcp-remote` : `http` refusé ou attente sans fin  | URL `http://` sans `--allow-http`, ou jeton Google absent/expiré | ajoute `--allow-http` en local ; régénère le jeton pour Cloud Run |
 | `check.py` affiche des ⚠️ sur Docker/gcloud       | outils non installés — **normal, pas bloquant**    | avance quand même sur la lecture/le code, teste en binôme            |
 
 > 💡 **Filet de sécurité :** `solution/` contient la version complète. En cas de blocage :

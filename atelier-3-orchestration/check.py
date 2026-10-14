@@ -8,6 +8,7 @@ animateur, pas un exercice solo.
 """
 
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -58,6 +59,28 @@ docker_ok = shutil.which("docker") is not None
 warn("Docker CLI disponible (`docker`)", docker_ok,
      "installe Docker Desktop pour faire les exercices 1-3 en autonomie — sinon suis-les "
      "en lecture, la démo des exercices 4-5 sera faite par l'animateur")
+
+
+
+def docker_daemon_running() -> bool:
+    """`docker` peut être installé sans que Docker Desktop soit démarré : on teste le daemon."""
+    try:
+        return subprocess.run(["docker", "info"], capture_output=True, timeout=15).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+if docker_ok:
+    warn("Docker démarré (le daemon répond à `docker info`)", docker_daemon_running(),
+         "lance Docker Desktop et attends qu'il soit prêt, sinon `docker build`/`compose` "
+         "échoueront")
+
+# 4 bis. Node.js / npx — SOFT check : seulement pour le pont `mcp-remote` de l'exercice 5
+# (connecter Claude Desktop à un MCP en HTTP). Inutile pour les exercices 1 à 4.
+node_ok = shutil.which("npx") is not None
+warn("Node.js / npx disponible (`npx`)", node_ok,
+     "nécessaire seulement pour l'exercice 5 avec Claude Desktop (`npx -y mcp-remote`) — "
+     "installe Node.js (https://nodejs.org) ou suis l'exercice 5 avec le client Python")
 
 # 5. gcloud — SOFT check, jamais bloquant (l'étape 4 est une démo animateur, pas un exercice solo)
 gcloud_ok = shutil.which("gcloud") is not None

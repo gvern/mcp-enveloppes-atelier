@@ -78,6 +78,12 @@ n'y est visible que depuis l'intérieur), et ajoute la couche d'authentification
 - **Docker** (Desktop ou Engine) — pour les exercices 1 à 3 en autonomie. Absent ? `check.py`
   le signale sans bloquer : tu peux lire/coder tout le TODO, la vérification `docker build`
   sera faite en binôme ou par l'animateur.
+  Docker doit être **démarré** (pas seulement installé) : `docker info` doit répondre.
+  Prévoir un premier build sur le réseau de la salle (téléchargement de `python:3.12-slim` et
+  des dépendances, ~3 min au premier passage).
+- **Node.js** (fournit `npx`) et **Claude Desktop** — optionnels, uniquement pour
+  l'exercice 5 (connecter Claude Desktop à un MCP HTTP via le pont `mcp-remote`). Sans eux, suis
+  l'exercice 5 avec le client Python.
 - **gcloud CLI** — optionnel, uniquement pour suivre l'exercice 4 en détail (fait **en démo**
   par l'animateur, pas en autonomie).
 - **`atelier-1-serveur-mcp/` déjà prêt** (`uv sync` lancé dedans) — voir plus haut.
